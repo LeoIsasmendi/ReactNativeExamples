@@ -11,17 +11,34 @@ import {
   SafeAreaView,
   StyleSheet,
   StatusBar,
+  Dimensions,
 } from 'react-native';
 
 import {
   Colors,
 } from 'react-native/Libraries/NewAppScreen';
 
+import VideoPlayer from './src/modules/LibVLCPlayerView';
+
+
+
 const App: () => React$Node = () => {
+
+
+  const { height, width } = Dimensions.get('window');
+
   return (
     <>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView>
+
+        <VideoPlayer style={{
+          background: 'black', height: height,
+          width: width
+        }} source={{
+          uri: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        }}></VideoPlayer>
+
       </SafeAreaView>
     </>
   );
