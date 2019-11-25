@@ -21,11 +21,6 @@
         </intent-filter>
       </activity>
       <activity android:name="com.facebook.react.devsupport.DevSettingsActivity" />
-       <activity
-            android:name=".VideoActivity"
-            android:configChanges="orientation|screenSize"
-            android:label="Video Player"
-            android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
     </application>
 
 </manifest>
