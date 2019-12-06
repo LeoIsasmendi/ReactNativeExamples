@@ -63,7 +63,7 @@ class VideoEventEmitter {
     }
 
     /**
-     * MideaPlayer初始化完毕回调
+     * MediaPlayer
      */
     void loadStart() {
         WritableMap event = Arguments.createMap();
@@ -72,7 +72,6 @@ class VideoEventEmitter {
 
 
     /**
-     * 视频进度改变回调
      *
      * @param currentPosition
      * @param bufferedDuration
@@ -95,7 +94,6 @@ class VideoEventEmitter {
     }
 
     /**
-     * 截图回调
      *
      * @param result
      */
@@ -106,7 +104,6 @@ class VideoEventEmitter {
     }
 
     /**
-     * 是否播放回调
      *
      * @param isPlaying
      */
@@ -117,7 +114,6 @@ class VideoEventEmitter {
     }
 
     /**
-     * 视频状态改变回调
      *
      * @param map
      */

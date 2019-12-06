@@ -62,11 +62,31 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
     private int preVolume = 200;
     private boolean autoAspectRatio = false;
 
-    // React
+    /**
+     * React context
+     */
+
     private final ThemedReactContext themedReactContext;
     private final ReactApplicationContext applicationContext;
     private final AudioManager audioManager;
 
+
+    /**
+     * Events Listener
+     */
+
+    private View.OnLayoutChangeListener onLayoutChangeListener = getOnLayoutChangeListener();
+    private MediaPlayer.EventListener mPlayerListener = getMediaPlayerEventListener();
+    private IVLCVout.OnNewVideoLayoutListener onNewVideoLayoutListener = getOnNewVideoLayoutListener();
+    IVLCVout.Callback callback = getIVLCVoutCallback();
+
+
+    /**
+     * Constructor
+     *
+     * @param context
+     * @param applicationContext
+     */
 
     public PlayerView(ThemedReactContext context, ReactApplicationContext applicationContext) {
         super(context);
@@ -74,13 +94,12 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
         this.eventEmitter = new VideoEventEmitter(context);
         this.themedReactContext = context;
         audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-        // themedReactContext.addLifecycleEventListener(this);
-        DisplayMetrics dm = getResources().getDisplayMetrics();
-        screenHeight = dm.heightPixels;
-        screenWidth = dm.widthPixels;
+        themedReactContext.addLifecycleEventListener(this);
+        DisplayMetrics displayMetrics = getResources().getDisplayMetrics();
+        screenHeight = displayMetrics.heightPixels;
+        screenWidth = displayMetrics.widthPixels;
         this.setSurfaceTextureListener(this);
         this.addOnLayoutChangeListener(onLayoutChangeListener);
-
     }
 
     @Override
@@ -101,18 +120,18 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
         stopPlayback();
     }
 
-    // LifecycleEventListener implementation
+    /**
+     * LifecycleEventListener implementation
+     */
 
     @Override
     public void onHostResume() {
         if (mMediaPlayer != null && isSurfaceViewDestory && isHostPaused) {
             IVLCVout vlcOut = mMediaPlayer.getVLCVout();
             if (!vlcOut.areViewsAttached()) {
-                // vlcOut.setVideoSurface(this.getHolder().getSurface(), this.getHolder());
                 vlcOut.attachViews(onNewVideoLayoutListener);
                 isSurfaceViewDestory = false;
                 isPaused = false;
-                // this.getHolder().setKeepScreenOn(true);
                 mMediaPlayer.play();
             }
         }
@@ -120,11 +139,10 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
 
     @Override
     public void onHostPause() {
-        if (!isPaused && mMediaPlayer != null) {
+        if (!isHostPaused && mMediaPlayer != null) {
             isPaused = true;
             isHostPaused = true;
             mMediaPlayer.pause();
-            // this.getHolder().setKeepScreenOn(false);
             WritableMap map = Arguments.createMap();
             map.putString("type", "Paused");
             eventEmitter.onVideoStateChange(map);
@@ -137,130 +155,142 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
         stopPlayback();
     }
 
-    // AudioManager.OnAudioFocusChangeListener implementation
+    /**
+     * AudioManager.OnAudioFocusChangeListener implementation
+     */
+
     @Override
     public void onAudioFocusChange(int focusChange) {
     }
 
-    /*************
-     * Events Listener
-     *************/
 
-    private View.OnLayoutChangeListener onLayoutChangeListener = new View.OnLayoutChangeListener() {
+    /**
+     * Events Listener methods
+     */
 
-        @Override
-        public void onLayoutChange(View view, int i, int i1, int i2, int i3, int i4, int i5, int i6, int i7) {
-            if (view.getWidth() > 0 && view.getHeight() > 0) {
-                mVideoWidth = view.getWidth();
-                mVideoHeight = view.getHeight();
-                if (mMediaPlayer != null) {
-                    IVLCVout vlcOut = mMediaPlayer.getVLCVout();
-                    vlcOut.setWindowSize(mVideoWidth, mVideoHeight);
-                    if (autoAspectRatio) {
-                        mMediaPlayer.setAspectRatio(mVideoWidth + ":" + mVideoHeight);
+    private View.OnLayoutChangeListener getOnLayoutChangeListener() {
+        return new View.OnLayoutChangeListener() {
+            @Override
+            public void onLayoutChange(View view, int i, int i1, int i2, int i3, int i4, int i5, int i6, int i7) {
+                if (view.getWidth() > 0 && view.getHeight() > 0) {
+                    mVideoWidth = view.getWidth();
+                    mVideoHeight = view.getHeight();
+                    if (mMediaPlayer != null) {
+                        IVLCVout vlcOut = mMediaPlayer.getVLCVout();
+                        vlcOut.setWindowSize(mVideoWidth, mVideoHeight);
+                        if (autoAspectRatio) {
+                            mMediaPlayer.setAspectRatio(mVideoWidth + ":" + mVideoHeight);
+                        }
                     }
                 }
             }
-        }
-    };
+        };
+    }
 
-    private MediaPlayer.EventListener mPlayerListener = new MediaPlayer.EventListener() {
-        long currentTime = 0;
-        long totalLength = 0;
+    private MediaPlayer.EventListener getMediaPlayerEventListener() {
+        return new MediaPlayer.EventListener() {
+            long currentTime = 0;
+            long totalLength = 0;
 
-        @Override
-        public void onEvent(MediaPlayer.Event event) {
-            boolean isPlaying = mMediaPlayer.isPlaying();
-            currentTime = mMediaPlayer.getTime();
-            float position = mMediaPlayer.getPosition();
-            totalLength = mMediaPlayer.getLength();
+            @Override
+            public void onEvent(MediaPlayer.Event event) {
+                boolean isPlaying = mMediaPlayer.isPlaying();
+                currentTime = mMediaPlayer.getTime();
+                float position = mMediaPlayer.getPosition();
+                totalLength = mMediaPlayer.getLength();
 
-            WritableMap map = Arguments.createMap();
-            map.putBoolean("isPlaying", isPlaying);
-            map.putDouble("position", position);
-            map.putDouble("currentTime", currentTime);
-            map.putDouble("duration", totalLength);
+                WritableMap map = Arguments.createMap();
+                map.putBoolean("isPlaying", isPlaying);
+                map.putDouble("position", position);
+                map.putDouble("currentTime", currentTime);
+                map.putDouble("duration", totalLength);
 
-            switch (event.type) {
-                case MediaPlayer.Event.EndReached:
-                    map.putString("type", "Ended");
-                    eventEmitter.onVideoStateChange(map);
-                    break;
-                case MediaPlayer.Event.Playing:
-                    map.putString("type", "Playing");
-                    eventEmitter.onVideoStateChange(map);
-                    break;
-                case MediaPlayer.Event.Opening:
-                    map.putString("type", "Opening");
-                    eventEmitter.onVideoStateChange(map);
-                    break;
-                case MediaPlayer.Event.Paused:
-                    map.putString("type", "Paused");
-                    eventEmitter.onVideoStateChange(map);
-                    break;
-                case MediaPlayer.Event.Buffering:
-                    map.putDouble("bufferRate", event.getBuffering());
-                    map.putString("type", "Buffering");
-                    eventEmitter.onVideoStateChange(map);
-                    break;
-                case MediaPlayer.Event.Stopped:
-                    map.putString("type", "Stopped");
-                    eventEmitter.onVideoStateChange(map);
-                    break;
-                case MediaPlayer.Event.EncounteredError:
-                    map.putString("type", "Error");
-                    eventEmitter.onVideoStateChange(map);
-                    break;
-                case MediaPlayer.Event.TimeChanged:
-                    map.putString("type", "TimeChanged");
-                    eventEmitter.onVideoStateChange(map);
-                    break;
-                default:
-                    map.putString("type", event.type + "");
-                    eventEmitter.onVideoStateChange(map);
-                    break;
+                switch (event.type) {
+                    case MediaPlayer.Event.EndReached:
+                        map.putString("type", "Ended");
+                        eventEmitter.onVideoStateChange(map);
+                        break;
+                    case MediaPlayer.Event.Playing:
+                        map.putString("type", "Playing");
+                        eventEmitter.onVideoStateChange(map);
+                        break;
+                    case MediaPlayer.Event.Opening:
+                        map.putString("type", "Opening");
+                        eventEmitter.onVideoStateChange(map);
+                        break;
+                    case MediaPlayer.Event.Paused:
+                        map.putString("type", "Paused");
+                        eventEmitter.onVideoStateChange(map);
+                        break;
+                    case MediaPlayer.Event.Buffering:
+                        map.putDouble("bufferRate", event.getBuffering());
+                        map.putString("type", "Buffering");
+                        eventEmitter.onVideoStateChange(map);
+                        break;
+                    case MediaPlayer.Event.Stopped:
+                        map.putString("type", "Stopped");
+                        eventEmitter.onVideoStateChange(map);
+                        break;
+                    case MediaPlayer.Event.EncounteredError:
+                        map.putString("type", "Error");
+                        eventEmitter.onVideoStateChange(map);
+                        break;
+                    case MediaPlayer.Event.TimeChanged:
+                        map.putString("type", "TimeChanged");
+                        eventEmitter.onVideoStateChange(map);
+                        break;
+                    default:
+                        map.putString("type", event.type + "");
+                        eventEmitter.onVideoStateChange(map);
+                        break;
+                }
+                eventEmitter.isPlaying(mMediaPlayer.isPlaying());
             }
-            eventEmitter.isPlaying(mMediaPlayer.isPlaying());
-        }
-    };
+        };
+    }
 
-    private IVLCVout.OnNewVideoLayoutListener onNewVideoLayoutListener = new IVLCVout.OnNewVideoLayoutListener() {
-        @Override
-        public void onNewVideoLayout(IVLCVout vout, int width, int height, int visibleWidth, int visibleHeight,
-                                     int sarNum, int sarDen) {
-            if (width * height == 0)
-                return;
-            // store video size
-            mVideoWidth = width;
-            mVideoHeight = height;
-            mVideoVisibleWidth = visibleWidth;
-            mVideoVisibleHeight = visibleHeight;
-            mSarNum = sarNum;
-            mSarDen = sarDen;
-            WritableMap map = Arguments.createMap();
-            map.putInt("mVideoWidth", mVideoWidth);
-            map.putInt("mVideoHeight", mVideoHeight);
-            map.putInt("mVideoVisibleWidth", mVideoVisibleWidth);
-            map.putInt("mVideoVisibleHeight", mVideoVisibleHeight);
-            map.putInt("mSarNum", mSarNum);
-            map.putInt("mSarDen", mSarDen);
-            map.putString("type", "onNewVideoLayout");
-            eventEmitter.onVideoStateChange(map);
-        }
-    };
+    private IVLCVout.OnNewVideoLayoutListener getOnNewVideoLayoutListener() {
+        return new IVLCVout.OnNewVideoLayoutListener() {
+            @Override
+            public void onNewVideoLayout(IVLCVout vout, int width, int height, int visibleWidth, int visibleHeight,
+                                         int sarNum, int sarDen) {
+                if (width * height == 0)
+                    return;
+                // store video size
+                mVideoWidth = width;
+                mVideoHeight = height;
+                mVideoVisibleWidth = visibleWidth;
+                mVideoVisibleHeight = visibleHeight;
+                mSarNum = sarNum;
+                mSarDen = sarDen;
+                WritableMap map = Arguments.createMap();
+                map.putInt("mVideoWidth", mVideoWidth);
+                map.putInt("mVideoHeight", mVideoHeight);
+                map.putInt("mVideoVisibleWidth", mVideoVisibleWidth);
+                map.putInt("mVideoVisibleHeight", mVideoVisibleHeight);
+                map.putInt("mSarNum", mSarNum);
+                map.putInt("mSarDen", mSarDen);
+                map.putString("type", "onNewVideoLayout");
+                eventEmitter.onVideoStateChange(map);
+            }
+        };
+    }
 
-    IVLCVout.Callback callback = new IVLCVout.Callback() {
-        @Override
-        public void onSurfacesCreated(IVLCVout ivlcVout) {
-            isSurfaceViewDestory = false;
-        }
 
-        @Override
-        public void onSurfacesDestroyed(IVLCVout ivlcVout) {
-            isSurfaceViewDestory = true;
-        }
+    private IVLCVout.Callback getIVLCVoutCallback() {
+        return new IVLCVout.Callback() {
+            @Override
+            public void onSurfacesCreated(IVLCVout ivlcVout) {
+                isSurfaceViewDestory = false;
+            }
 
-    };
+            @Override
+            public void onSurfacesDestroyed(IVLCVout ivlcVout) {
+                isSurfaceViewDestory = true;
+            }
+
+        };
+    }
 
     /*************
      * MediaPlayer
@@ -307,14 +337,12 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
                 mMediaPlayer.setAspectRatio(mVideoWidth + ":" + mVideoHeight);
             }
         }
-        DisplayMetrics dm = getResources().getDisplayMetrics();
-        Media m = null;
 
         Uri uri = Uri.parse(uriString);
-        m = new Media(libvlc, uri);
-        m.setEventListener(mMediaListener);
+        Media media = new Media(libvlc, uri);
+        media.setEventListener(mMediaListener);
 
-        mMediaPlayer.setMedia(m);
+        mMediaPlayer.setMedia(media);
         mMediaPlayer.setScale(0);
 
         if (!vlcOut.areViewsAttached()) {
@@ -338,8 +366,6 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
     }
 
     /**
-     * 视频进度调整
-     *
      * @param time
      */
     public void seekTo(long time) {
@@ -357,8 +383,6 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
     }
 
     /**
-     * 设置资源路径
-     *
      * @param uri
      * @param isLive
      */
@@ -373,8 +397,6 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
     }
 
     /**
-     * 改变播放速率
-     *
      * @param rateModifier
      */
     public void setRateModifier(float rateModifier) {
@@ -384,8 +406,6 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
     }
 
     /**
-     * 改变声音大小
-     *
      * @param volumeModifier
      */
     public void setVolumeModifier(int volumeModifier) {
@@ -395,8 +415,6 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
     }
 
     /**
-     * 改变静音状态
-     *
      * @param muted
      */
     public void setMutedModifier(boolean muted) {
@@ -411,8 +429,6 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
     }
 
     /**
-     * 改变播放状态
-     *
      * @param paused
      */
     public void setPausedModifier(boolean paused) {
@@ -432,8 +448,6 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
     }
 
     /**
-     * 截图
-     *
      * @param path
      */
     public void doSnapshot(String path) {
@@ -452,8 +466,6 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
     }
 
     /**
-     * 重新加载视频
-     *
      * @param autoplay
      */
     public void doResume(boolean autoplay) {
@@ -464,8 +476,6 @@ class PlayerView extends TextureView implements LifecycleEventListener, TextureV
     }
 
     /**
-     * 改变宽高比
-     *
      * @param aspectRatio
      */
     public void setAspectRatio(String aspectRatio) {
